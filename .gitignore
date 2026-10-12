@@ -1,0 +1,14 @@
+# runtime artifacts
+.proxy.log
+.shot-*.png
+.cprof/
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+node_modules/
+
+# generated while running the build script / verification
+.build/

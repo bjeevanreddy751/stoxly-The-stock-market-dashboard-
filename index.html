@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stoxly — Stock Market Dashboard</title>
+<meta name="description" content="Stoxly — live prices for every NSE &amp; BSE stock in all 22 scheduled Indian languages, plus English." />
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=3" />
+<link rel="stylesheet" href="css/styles.css?v=3" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32" focusable="false">
+        <path class="logo-fill" d="M4 23 L11.5 15.5 L16 20 L27.5 8 V27 H4 Z" />
+        <path class="logo-line" d="M4 23 L11.5 15.5 L16 20 L27.5 8" />
+        <path class="logo-arrow" d="M20.5 8 H27.5 V15" />
+        <circle class="logo-dot" cx="27.5" cy="8" r="1.9" />
+      </svg>
+    </span>
+    <span class="brand-text">
+      <strong data-i18n="appTitle">Stoxly</strong>
+      <small data-i18n="appSubtitle">Live Indian market prices in your language</small>
+    </span>
+  </div>
+
+  <div class="topbar-controls">
+    <span id="marketBadge" class="badge badge-muted" data-i18n="marketClosed">Market closed</span>
+
+    <div class="field">
+      <label for="langSelect" data-i18n="language">Language</label>
+      <select id="langSelect" aria-label="Language"></select>
+    </div>
+
+    <button id="refreshBtn" class="btn" data-i18n-title="refreshNow">
+      <span class="spinner" id="refreshSpinner" hidden></span>
+      <span data-i18n="refresh">Refresh</span>
+    </button>
+
+    <button id="themeBtn" class="btn btn-icon" data-i18n-title="toggleTheme" aria-label="Theme">
+      <span id="themeIcon">☾</span>
+    </button>
+  </div>
+</header>
+
+<main>
+  <!-- Market indices -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2 data-i18n="marketIndices">Market indices</h2>
+      <span class="muted small" id="stripSource"></span>
+    </div>
+    <div id="indexStrip" class="index-strip"></div>
+  </section>
+
+  <div class="layout">
+    <!-- Watchlist + search -->
+    <aside class="panel">
+      <div class="panel-head">
+        <h2 data-i18n="watchlist">Watchlist</h2>
+        <span class="muted small" id="watchCount"></span>
+      </div>
+
+      <form id="searchForm" class="search-wrap" autocomplete="off">
+        <input
+          id="searchInput"
+          type="search"
+          autocomplete="off"
+          data-i18n-placeholder="searchPlaceholder"
+          placeholder="Search all 5,200+ NSE &amp; BSE stocks…" />
+        <div class="search-actions">
+          <button type="submit" id="searchBtn" class="btn btn-primary" data-i18n="search">Search</button>
+          <button type="button" id="clearBtn" class="btn btn-ghost" data-i18n="clear">Clear</button>
+        </div>
+        <p class="search-hint muted small" data-i18n="searchHint">
+          Type at least 2 characters, or paste a Yahoo Finance symbol (e.g. RELIANCE.NS)
+        </p>
+      </form>
+
+      <div id="searchResults" class="search-results" hidden></div>
+
+      <ul id="watchList" class="watch-list"></ul>
+
+      <button id="resetBtn" class="btn btn-ghost btn-block" data-i18n="resetDefaults">Reset to defaults</button>
+    </aside>
+
+    <!-- Selected instrument -->
+    <section class="panel detail-panel">
+      <div class="detail-head">
+        <div>
+          <h2 id="stockName" class="stock-name">—</h2>
+          <div class="stock-sub">
+            <span id="stockSymbol" class="chip"></span>
+            <span id="stockSector" class="muted"></span>
+            <span id="stockOfficial" class="muted small"></span>
+          </div>
+        </div>
+        <div class="detail-price">
+          <div id="stockPrice" class="price">—</div>
+          <div id="stockChange" class="change">—</div>
+          <div id="stockLive" class="live-quote" hidden></div>
+        </div>
+      </div>
+
+      <div class="range-tabs" id="rangeTabs" role="tablist"></div>
+
+      <div class="chart-wrap">
+        <canvas id="priceChart" aria-label="Price chart"></canvas>
+        <div id="chartMessage" class="chart-message" hidden></div>
+      </div>
+
+      <dl class="stats" id="statsGrid"></dl>
+    </section>
+  </div>
+
+  <!-- All NSE stocks -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2 data-i18n="allStocks">All NSE &amp; BSE stocks</h2>
+      <div class="panel-head-actions">
+        <span class="muted small" id="universeInfo"></span>
+        <button id="refreshListBtn" class="btn btn-ghost btn-small" data-i18n-title="refreshList">
+          <span class="spinner" id="listSpinner" hidden></span>
+          <span data-i18n="refreshList">Refresh list</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="market-controls">
+      <div class="field">
+        <label for="basketSelect" data-i18n="basket">Basket</label>
+        <select id="basketSelect"></select>
+      </div>
+      <div class="field">
+        <label for="exchangeSelect" data-i18n="exchange">Exchange</label>
+        <select id="exchangeSelect">
+          <option value="all" data-i18n="exchangeAll">All</option>
+          <option value="NSE">NSE</option>
+          <option value="BSE">BSE</option>
+        </select>
+      </div>
+      <button id="loadSnapshotBtn" class="btn btn-primary">
+        <span class="spinner" id="snapshotSpinner" hidden></span>
+        <span data-i18n="loadSnapshot">Load snapshot</span>
+      </button>
+      <span id="snapshotStatus" class="muted small"></span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="market-table">
+        <thead>
+          <tr>
+            <th class="col-name" data-sort="name" aria-sort="none">
+              <button type="button" class="th-sort">
+                <span data-i18n="allStocks">Stock</span>
+                <span class="sort-arrow" aria-hidden="true"></span>
+              </button>
+            </th>
+            <th class="col-num" data-sort="price" aria-sort="none">
+              <button type="button" class="th-sort">
+                <span data-i18n="price">Price</span>
+                <span class="sort-arrow" aria-hidden="true"></span>
+              </button>
+            </th>
+            <th class="col-num" data-sort="change" aria-sort="descending">
+              <button type="button" class="th-sort">
+                <span data-i18n="changePct">Change %</span>
+                <span class="sort-arrow" aria-hidden="true"></span>
+              </button>
+            </th>
+            <th class="col-sector" data-sort="sector" aria-sort="none">
+              <button type="button" class="th-sort">
+                <span data-i18n="sector">Sector</span>
+                <span class="sort-arrow" aria-hidden="true"></span>
+              </button>
+            </th>
+          </tr>
+        </thead>
+        <tbody id="marketTable"></tbody>
+      </table>
+    </div>
+
+    <button id="showMoreBtn" class="btn btn-ghost btn-block" data-i18n="showMore" hidden>Show more</button>
+  </section>
+
+  <!-- Movers -->
+  <div class="movers">
+    <section class="panel">
+      <div class="panel-head"><h2 data-i18n="topGainers">Top gainers</h2><span class="dot dot-up">▲</span></div>
+      <ul id="gainersList" class="movers-list"></ul>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2 data-i18n="topLosers">Top losers</h2><span class="dot dot-down">▼</span></div>
+      <ul id="losersList" class="movers-list"></ul>
+    </section>
+  </div>
+</main>
+
+<footer class="footer">
+  <span>
+    <span data-i18n="dataSource">Data source</span>:
+    <strong id="sourceName">Yahoo Finance</strong>
+  </span>
+  <span>
+    <span data-i18n="lastUpdated">Last updated</span>:
+    <strong id="lastUpdated">—</strong>
+  </span>
+  <span class="muted small" data-i18n="disclaimer">
+    Prices are indicative and for information only. Not investment advice.
+  </span>
+</footer>
+
+<div id="toast" class="toast" hidden></div>
+
+<!-- The ?v= on every asset busts browser caches, so a static server that does
+     not send Cache-Control (e.g. `python -m http.server`) can never serve an
+     old config.js / app.js after an edit. Bump it when assets change. -->
+
+<!-- locales (one file per language) -->
+<script src="js/locales/en.js?v=3" defer></script>
+<script src="js/locales/hi.js?v=3" defer></script>
+<script src="js/locales/mr.js?v=3" defer></script>
+<script src="js/locales/kn.js?v=3" defer></script>
+<script src="js/locales/te.js?v=3" defer></script>
+<script src="js/locales/ta.js?v=3" defer></script>
+<script src="js/locales/ml.js?v=3" defer></script>
+<script src="js/locales/bn.js?v=3" defer></script>
+<script src="js/locales/gu.js?v=3" defer></script>
+<script src="js/locales/pa.js?v=3" defer></script>
+<script src="js/locales/or.js?v=3" defer></script>
+<script src="js/locales/as.js?v=3" defer></script>
+<script src="js/locales/ur.js?v=3" defer></script>
+<script src="js/locales/kok.js?v=3" defer></script>
+<script src="js/locales/mai.js?v=3" defer></script>
+<script src="js/locales/doi.js?v=3" defer></script>
+<script src="js/locales/brx.js?v=3" defer></script>
+<script src="js/locales/sa.js?v=3" defer></script>
+<script src="js/locales/mni.js?v=3" defer></script>
+<script src="js/locales/sd.js?v=3" defer></script>
+<script src="js/locales/ks.js?v=3" defer></script>
+<script src="js/locales/sat.js?v=3" defer></script>
+
+<!-- Chart.js is vendored so the dashboard also works offline. -->
+<script src="vendor/chart.umd.min.js?v=3" defer></script>
+
+<!-- core -->
+<script src="js/config.js?v=3" defer></script>
+<script src="js/translit.js?v=3" defer></script>
+<script src="js/glossary.js?v=3" defer></script>
+<script src="js/i18n.js?v=3" defer></script>
+<script src="js/universe.js?v=3" defer></script>
+<script src="js/data.js?v=3" defer></script>
+<script src="js/app.js?v=3" defer></script>
+
+<script>
+  // Last-resort CDN fallback if vendor/chart.umd.min.js is missing.
+  window.addEventListener('load', function () {
+    if (typeof window.Chart === 'undefined') {
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js';
+      s.onload = function () { window.dispatchEvent(new Event('chartjs:ready')); };
+      document.head.appendChild(s);
+    }
+  });
+</script>
+</body>
+</html>
