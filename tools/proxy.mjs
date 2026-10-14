@@ -20,7 +20,14 @@ const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || '127.0.0.1';
 /** Hosts this proxy will fetch. All are free and need no API key.
  *  Google Finance is restricted to quote pages because the dashboard only
- *  uses it for the one stock being viewed. */
+ *  uses it for the one stock being viewed.
+ *
+ *  Note: Yahoo's `v8/finance/spark` multi-symbol batches sometimes return only
+ *  the first symbol on the Indian feed. The dashboard (js/data.js) treats a
+ *  batch that returns fewer symbols than requested as partially missing and
+ *  re-fetches the stragglers one symbol at a time, so it is safe to keep
+ *  batch sizes modest (CONFIG.snapshotChunkSize).
+ */
 const ALLOWED = [
   /^https:\/\/query[12]\.finance\.yahoo\.com\//,
   /^https:\/\/nsearchives\.nseindia\.com\//,

@@ -142,8 +142,14 @@ const CONFIG = {
   snapshotRefreshMs: 60000,
   /** Baskets larger than this are not auto-refreshed (keeps requests sane). */
   liveSnapshotMax: 60,
-  /** Snapshot fetching: symbols per request and how many requests at once. */
-  snapshotChunkSize: 40,
+  /**
+   * Snapshot fetching: symbols per request and how many requests at once.
+   * Kept modest because Yahoo's `v8/finance/spark` endpoint sometimes returns
+   * only the first symbol of a large multi-symbol batch on the Indian feed, so
+   * smaller batches keep the common path on the fast batched request and let
+   * data.js re-fetch the stragglers one at a time.
+   */
+  snapshotChunkSize: 15,
   snapshotConcurrency: 3,
   /** Market table: rows rendered initially and per "show more". */
   tablePageSize: 40,

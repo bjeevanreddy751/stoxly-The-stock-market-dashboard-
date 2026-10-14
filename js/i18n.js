@@ -55,7 +55,7 @@ const Format = {
   locale(lang) {
     const meta = LANGUAGES.find((l) => l.code === lang) || LANGUAGES[0];
     if (this.numbering(lang)) return meta.locale;
-    return meta.numerals === 'native' ? meta.locale : `${meta.locale}-u-nu-latn`;
+    return `${meta.locale}-u-nu-latn`;
   },
 
   /** Unicode numbering system for a language ('' = Western digits). */
@@ -63,7 +63,12 @@ const Format = {
     return (typeof NATIVE_DIGITS !== 'undefined' && NATIVE_DIGITS[lang]) || '';
   },
 
-  /** Build an Intl.NumberFormat, falling back if the numbering system is unknown. */
+  /**
+   * Build an Intl.NumberFormat. When a language has a numbering system that
+   * Intl does not support (e.g. Santali Ol Chiki), `locale()` already returns
+   * a `-u-nu-latn` id, so this only has to honour the system when it is
+   * genuinely available.
+   */
   numberFormat(lang, digits) {
     const base = { minimumFractionDigits: digits, maximumFractionDigits: digits };
     const ns = this.numbering(lang);

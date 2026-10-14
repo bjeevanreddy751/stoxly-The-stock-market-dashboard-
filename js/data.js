@@ -403,7 +403,15 @@ const DataService = (() => {
     return { source: live ? 'live' : 'demo', quotes, chunks: results.length };
   }
 
-  /** One batched request for up to `snapshotChunkSize` symbols. */
+  /**
+   * One batched request for up to `snapshotChunkSize` symbols.
+   *
+   * Yahoo's `v8/finance/spark` endpoint sometimes returns only the first
+   * symbol of a multi-symbol batch (compression/truncation on the Indian
+   * feed). When that happens we re-fetch the missing symbols one at a time
+   * through the same spark endpoint, and only drop to demo data when every
+   * individual attempt also fails.
+   */
   async function fetchQuoteChunk(symbols) {
     if (!symbols.length) return { source: 'live', quotes: {} };
 
@@ -431,8 +439,12 @@ const DataService = (() => {
       sparkQuotes = {};
     }
 
+    // If the batch came back with far fewer quotes than we asked for, treat
+    // the missing symbols as genuinely absent from the batch and re-fetch them
+    // individually rather than silently falling back to demo data.
     const missing = symbols.filter((symbol) => !sparkQuotes[symbol]);
     if (missing.length) {
+      // First try the existing chart-based fallback for the missing symbols.
       const fallbacks = await mapLimit(missing, 4, async (symbol) => {
         try {
           const series = await fetchSeries(symbol, '1d');
@@ -444,6 +456,55 @@ const DataService = (() => {
         }
       });
       fallbacks.filter(Boolean).forEach((quote) => { sparkQuotes[quote.symbol] = quote; });
+
+      // Any still-missing symbols: re-request them one at a time through the
+      // spark endpoint (single-symbol batches are reliable on this feed).
+      const stillMissing = symbols.filter((symbol) => !sparkQuotes[symbol]);
+      if (stillMissing.length) {
+        const singles = await mapLimit(stillMissing, 4, async (symbol) => {
+          try {
+            const singleParams = new URLSearchParams({
+              symbols: symbol,
+              range: '1d',
+              interval: '5m',
+              includePrePost: 'false'
+            });
+            const singleUrl = `https://query1.finance.yahoo.com/v8/finance/spark?${singleParams.toString()}`;
+            const singleJson = await getJSON(singleUrl);
+            const block = singleJson && singleJson[symbol];
+            if (!block) return null;
+            const quoteBlock = (block.indicators && block.indicators.quote && block.indicators.quote[0]) || {};
+            const close = block.close || quoteBlock.close || [];
+            const volume = Array.isArray(block.volume) ? block.volume : (quoteBlock.volume || []);
+            const meta = block.meta || {};
+            const quote = buildQuote(symbol, {
+              symbol,
+              currency: meta.currency || 'INR',
+              exchangeName: meta.exchangeName || 'NSE',
+              fullExchangeName: meta.fullExchangeName || 'NSE',
+              marketState: meta.marketState,
+              gmtoffset: num(meta.gmtoffset) ?? 19800,
+              regularMarketPrice: num(block.fulldayPrice) ?? num(meta.regularMarketPrice) ?? (close.length ? close[close.length - 1] : null),
+              previousClose: num(block.previousClose) ?? num(meta.previousClose),
+              chartPreviousClose: num(block.chartPreviousClose) ?? num(meta.chartPreviousClose),
+              fulldayChange: num(block.fulldayChange),
+              fulldayChangePercent: num(block.fulldayChangePercent),
+              regularMarketChange: num(meta.regularMarketChange),
+              regularMarketChangePercent: num(meta.regularMarketChangePercent),
+              regularMarketVolume: num(meta.regularMarketVolume),
+              regularMarketOpen: num(meta.regularMarketOpen),
+              regularMarketDayHigh: num(meta.regularMarketDayHigh),
+              regularMarketDayLow: num(meta.regularMarketDayLow),
+              fiftyTwoWeekHigh: num(meta.fiftyTwoWeekHigh),
+              fiftyTwoWeekLow: num(meta.fiftyTwoWeekLow)
+            }, close, volume);
+            return quote;
+          } catch (err) {
+            return null;
+          }
+        });
+        singles.filter(Boolean).forEach((quote) => { sparkQuotes[quote.symbol] = quote; });
+      }
     }
 
     if (Object.keys(sparkQuotes).length) {
